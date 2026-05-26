@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-import ast
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
@@ -7,7 +6,7 @@ app = Flask(__name__)
 @app.route("/format", methods=["POST"])
 def format_transcript():
     data = request.json
-    raw_messages = data.get("messages", "")
+    transcript = data.get("transcript", "").strip()
     caller_number = data.get("caller_number", "Unknown")
     timestamp = data.get("timestamp", "")
 
@@ -16,28 +15,12 @@ def format_transcript():
         dt_pacific = dt_utc - timedelta(hours=7)
         formatted_time = dt_pacific.strftime("%B %d, %Y at %I:%M %p Pacific Time")
     except Exception:
-        formatted_time = timestamp
+        formatted_time = timestamp if timestamp else "Unknown"
 
-    try:
-        messages = ast.literal_eval(raw_messages)
-    except Exception:
-        return jsonify({"formatted": f"Could not parse transcript.\n\nRaw:\n{raw_messages}"})
+    clean_transcript = transcript.replace("AI:", "Heidi:").replace("User:", "Caller:")
 
-    lines = []
-    for msg in messages:
-        role = msg.get("role", "")
-        content = msg.get("content", "")
-        if role == "system":
-            continue
-        elif role == "assistant":
-            if content:
-                lines.append(f"Heidi:  {content}")
-            elif msg.get("tool_calls"):
-                lines.append("Heidi:  [Initiated call transfer to Brad Yochum]")
-        elif role == "user" and content:
-            lines.append(f"Caller: {content}")
-
-    transcript = "\n".join(lines)
+    if not clean_transcript:
+        clean_transcript = "[No transcript available]"
 
     body = f"""New Incoming Call — Focus for NonProfits
 =============================================
@@ -47,7 +30,7 @@ Caller Number: {caller_number}
 
 CONVERSATION TRANSCRIPT
 ---------------------------------------------
-{transcript}
+{clean_transcript}
 ---------------------------------------------
 
 Full call log: https://dashboard.vapi.ai/logs
